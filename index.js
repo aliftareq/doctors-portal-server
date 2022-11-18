@@ -251,7 +251,7 @@ app.get('/jwt', async (req, res) => {
         res.status(403).send({ accessToken: '' })
     }
     catch (error) {
-
+        res.send({ message: error.message })
     }
 })
 
