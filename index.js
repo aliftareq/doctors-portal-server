@@ -38,6 +38,8 @@ const usersCollection = client.db('doctorsPortal').collection('users')
 const doctorsCollection = client.db('doctorsPortal').collection('doctors')
 
 //common funcions 
+
+//1
 function verifyJwt(req, res, next) {
     const authHeader = req.headers.authorization
     if (!authHeader) {
@@ -52,6 +54,17 @@ function verifyJwt(req, res, next) {
         req.decoded = decoded
         next()
     })
+}
+
+//2 (N.B: verify admin middleware should be call after verifyJWT)
+const verifyAdmin = async (req, res, next) => {
+    const decodedEmail = req.decoded.email
+    const query = { email: decodedEmail }
+    const user = await usersCollection.findOne(query)
+    if (user?.role !== 'admin') {
+        return res.status(403).send({ message: 'forbidden access' })
+    }
+    next()
 }
 
 
@@ -219,14 +232,8 @@ app.get('/users/admin/:email', async (req, res) => {
 })
 
 //api for updatin user info in db
-app.put('/users/admin/:id', verifyJwt, async (req, res) => {
+app.put('/users/admin/:id', verifyJwt, verifyAdmin, async (req, res) => {
     try {
-        const decodedEmail = req.decoded.email
-        const query = { email: decodedEmail }
-        const user = await usersCollection.findOne(query)
-        if (user?.role !== 'admin') {
-            return res.status(403).send({ message: 'forbidden access' })
-        }
         const id = req.params.id
         const filter = { _id: ObjectId(id) }
         const option = { upsert: true }
@@ -269,7 +276,7 @@ app.get('/appointmentSpecialty/', async (req, res) => {
 })
 
 //api for posting dotors data in database
-app.post('/doctors', verifyJwt, async (req, res) => {
+app.post('/doctors', verifyJwt, verifyAdmin, async (req, res) => {
     try {
         const doctor = req.body
         const result = await doctorsCollection.insertOne(doctor)
@@ -279,11 +286,23 @@ app.post('/doctors', verifyJwt, async (req, res) => {
     }
 })
 //api for getting dotors data in database
-app.get('/doctors', verifyJwt, async (req, res) => {
+app.get('/doctors', verifyJwt, verifyAdmin, async (req, res) => {
     try {
         const query = {}
         const doctors = await doctorsCollection.find(query).toArray()
         res.send(doctors)
+    } catch (error) {
+        res.send({ message: error.message })
+    }
+})
+
+//api for deleting dotors data in database
+app.delete('/doctors/:id', verifyJwt, verifyAdmin, async (req, res) => {
+    try {
+        const id = req.params.id
+        const query = { _id: ObjectId(id) }
+        const result = await doctorsCollection.deleteOne(query)
+        res.send(result)
     } catch (error) {
         res.send({ message: error.message })
     }
