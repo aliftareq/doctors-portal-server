@@ -35,6 +35,7 @@ run().catch(err => console.log(err.message.red.bold))
 const appointmentOptionsCollections = client.db('doctorsPortal').collection('appointmentOptions')
 const bookingsCollection = client.db('doctorsPortal').collection('bookings')
 const usersCollection = client.db('doctorsPortal').collection('users')
+const doctorsCollection = client.db('doctorsPortal').collection('doctors')
 
 //common funcions 
 function verifyJwt(req, res, next) {
@@ -251,6 +252,39 @@ app.get('/jwt', async (req, res) => {
         res.status(403).send({ accessToken: '' })
     }
     catch (error) {
+        res.send({ message: error.message })
+    }
+})
+
+//api for getting only appointments names
+app.get('/appointmentSpecialty/', async (req, res) => {
+    try {
+        const query = {}
+        const result = await appointmentOptionsCollections.find(query).project({ name: 1 }).toArray()
+        res.send(result)
+    }
+    catch (error) {
+        res.send({ message: error.message })
+    }
+})
+
+//api for posting dotors data in database
+app.post('/doctors', verifyJwt, async (req, res) => {
+    try {
+        const doctor = req.body
+        const result = await doctorsCollection.insertOne(doctor)
+        res.send(result)
+    } catch (error) {
+        res.send({ message: error.message })
+    }
+})
+//api for getting dotors data in database
+app.get('/doctors', verifyJwt, async (req, res) => {
+    try {
+        const query = {}
+        const doctors = await doctorsCollection.find(query).toArray()
+        res.send(doctors)
+    } catch (error) {
         res.send({ message: error.message })
     }
 })
