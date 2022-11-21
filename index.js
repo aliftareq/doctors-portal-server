@@ -1,10 +1,12 @@
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const express = require('express')
 const cors = require('cors')
-const jwt = require('jsonwebtoken')
+const jwt = require('jsonwebtoken');
 
 require('colors')
 require('dotenv').config()
+
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const app = express()
 const port = process.env.PORT || 5000;
@@ -36,6 +38,7 @@ const appointmentOptionsCollections = client.db('doctorsPortal').collection('app
 const bookingsCollection = client.db('doctorsPortal').collection('bookings')
 const usersCollection = client.db('doctorsPortal').collection('users')
 const doctorsCollection = client.db('doctorsPortal').collection('doctors')
+const paymentsCollection = client.db('doctorsPortal').collection('payments')
 
 //common funcions 
 
@@ -128,6 +131,7 @@ app.get('/v2/appointmentOptions', async (req, res) => {
             {
                 $project: {
                     name: 1,
+                    price: 1,
                     slots: 1,
                     booked: {
                         $map: {
@@ -141,6 +145,7 @@ app.get('/v2/appointmentOptions', async (req, res) => {
             {
                 $project: {
                     name: 1,
+                    price: 1,
                     slots: {
                         $setDifference: ['$slots', '$booked']
                     }
@@ -305,6 +310,84 @@ app.delete('/doctors/:id', verifyJwt, verifyAdmin, async (req, res) => {
         res.send(result)
     } catch (error) {
         res.send({ message: error.message })
+    }
+})
+
+// temporary to update price field to appointment options.
+// app.get('/addPrice', async (req, res) => {
+//     try {
+//         const filter = {}
+//         const option = { upsert: true }
+//         const updatedDoc = {
+//             $set: {
+//                 price: 99
+//             }
+//         }
+//         const result = await appointmentOptionsCollections.updateMany(filter, updatedDoc, option)
+//         res.send(result)
+//     }
+//     catch (error) {
+//         res.send({ message: error.message })
+//     }
+// })
+
+//api for getting a specific booking
+app.get('/booking/:id', async (req, res) => {
+    try {
+        const id = req.params.id
+        query = { _id: ObjectId(id) }
+        const booking = await bookingsCollection.findOne(query)
+        res.send(booking)
+    }
+    catch (error) {
+        res.send({ message: error.message })
+    }
+})
+
+//---------------payment task------------------
+
+//api for payment gateway...
+app.post('/create-payment-intent', async (req, res) => {
+    try {
+        const booking = req.body
+        const price = booking.price
+        const amount = price * 100
+
+        const paymentIntent = await stripe.paymentIntents.create({
+            currency: 'usd',
+            amount: amount,
+            "payment_method_types": [
+                "card"
+            ],
+        });
+        res.send({
+            clientSecret: paymentIntent.client_secret,
+        });
+    }
+    catch (error) {
+
+    }
+})
+
+//api for store payments data
+app.post('/payments', async (req, res) => {
+    try {
+        const payment = req.body
+        const result = await paymentsCollection.insertOne(payment)
+        const id = payment.bookingId
+        const filter = { _id: ObjectId(id) }
+        const updateDoc = {
+            $set: {
+                paid: true,
+                transactionId: payment.transactionId
+            }
+        }
+        const updateResult = await bookingsCollection.updateOne(filter, updateDoc)
+        res.send(result)
+
+    }
+    catch (error) {
+        res.send({ message: result })
     }
 })
 
